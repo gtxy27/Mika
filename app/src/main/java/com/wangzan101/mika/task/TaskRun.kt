@@ -301,6 +301,16 @@ class TaskRun(
         }
     }
 
+    /** 电脑只给仍在运行的任务插话;收件箱已关时拒绝,不变成下一任务。 */
+    fun steerFromMcp(text: String): Boolean = synchronized(service.taskState.shownLock) {
+        val s = _state.value
+        if (s !is TaskState.Running && (s !is TaskState.Held || s.reason.needsYou)) return@synchronized false
+        val id = UUID.randomUUID().toString()
+        if (inbox.steer(id, text) != InputReceipt.Accepted) return@synchronized false
+        _steers.value = _steers.value + SteerNote(id, text, SteerState.Received)
+        true
+    }
+
     /** 收尾时还没交给模型的插话:作为这个对话的下一件事;停止了([cancelled])就一起作废。 */
     fun handoffUnconsumed(cancelled: Boolean = stopPressed) {
         val left = inbox.handoffUnconsumed()

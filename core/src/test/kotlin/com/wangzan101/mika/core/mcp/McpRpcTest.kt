@@ -72,6 +72,18 @@ class McpRpcTest {
         assertEquals("t1", Json.parseToJsonElement(text).jsonObject["task_id"]!!.jsonPrimitive.content)
     }
 
+    @Test fun steeringIsAvailableThroughToolsCall() {
+        fake.start("check weather", null)
+        fake.set("t1", TaskState.Running(1, "checking"))
+        val r = post("""{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"mika_steer","arguments":{"task_id":"t1","text":"only tomorrow"}}}""")
+        assertEquals(200, r.status)
+        val result = r.json()["result"]!!.jsonObject
+        assertFalse(result["isError"]!!.jsonPrimitive.boolean)
+        assertEquals("t1", result["structuredContent"]!!.jsonObject["task_id"]!!.jsonPrimitive.content)
+        assertEquals(listOf("t1" to "only tomorrow"), fake.steers)
+        assertEquals(1, fake.tasks.size)
+    }
+
     @Test fun badArgumentsAreToolErrorsNotProtocolErrors() {
         val r = post("""{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"mika_task_status","arguments":{}}}""")
         assertEquals(200, r.status)
@@ -118,7 +130,7 @@ class McpRpcTest {
         assertEquals("mika", result["_meta"]!!.jsonObject[McpRpc.META_SERVER]!!.jsonObject["name"]!!.jsonPrimitive.content)
 
         val l = post("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{${modernMeta()}}}""", modernHeaders("tools/list"))
-        assertEquals(6, l.json()["result"]!!.jsonObject["tools"]!!.jsonArray.size)
+        assertEquals(7, l.json()["result"]!!.jsonObject["tools"]!!.jsonArray.size)
     }
 
     @Test fun modernToolCallChecksMirroredHeaders() {

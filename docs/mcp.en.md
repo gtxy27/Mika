@@ -124,6 +124,7 @@ curl -s http://192.168.1.23:8765/mcp \
 | `mika_task_status` | `task_id` | The task's state now: status, latest progress, what it is waiting for, and the answer when done. |
 | `mika_wait_task` | `task_id`, `timeout_s` (optional, default 30, at most 50) | Waits until the status changes (for example Mika starts waiting for an answer, or finishes) or time runs out, then returns the state. Progress notes alone don't count, so it doesn't return on every step. |
 | `mika_answer` | `task_id`, `text` | Answers the question Mika asked in this task. |
+| `mika_steer` | `task_id`, `text` | Adds or corrects instructions for a running or paused task before its next model request, keeping the same task ID. Use `mika_answer` for questions; confirmations and handover steps remain on the phone. |
 | `mika_cancel_task` | `task_id` | Stops the task. |
 | `mika_list_tasks` | `limit` (optional, default 10) | The most recent tasks handed over from computers, newest first. |
 

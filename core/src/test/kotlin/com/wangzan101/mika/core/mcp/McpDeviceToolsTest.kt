@@ -27,7 +27,7 @@ class McpDeviceToolsTest {
     private val tools = McpTaskTools(FakeRemoteTasks(), device = DeviceAccess(port, store))
 
     @Test fun productionToolSetAddsOnlyThreeCredentialFreeDeviceTools() = runTest {
-        assertEquals(9, tools.tools.size)
+        assertEquals(10, tools.tools.size)
         assertTrue(tools.has("mika_device_state"))
         assertTrue(tools.has("mika_wake_device"))
         assertTrue(tools.has("mika_unlock_device"))

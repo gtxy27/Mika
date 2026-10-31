@@ -78,6 +78,12 @@ class McpTaskHub(
         return true
     }
 
+    override fun steer(id: String, text: String): Boolean {
+        val record = synchronized(this) { records[id] } ?: return false
+        if (record.final != null) return false
+        return live(id)?.steerFromMcp(text) ?: false
+    }
+
     override fun cancel(id: String): Boolean {
         if (synchronized(this) { records[id] }?.final != null || live(id) == null) return false
         TaskService.cancelMcp(context, id)

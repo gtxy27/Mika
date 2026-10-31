@@ -42,6 +42,8 @@ interface RemoteTasks {
     fun list(limit: Int): List<RemoteTask>
     /** 只在任务正等着回答追问时调用;交给任务时返回 true。 */
     fun answer(id: String, text: String): Boolean
+    /** 给仍在运行或暂停的任务补充要求;不回答追问、不代替手机上的确认。 */
+    fun steer(id: String, text: String): Boolean
     fun cancel(id: String): Boolean
 }
 
@@ -162,6 +164,12 @@ class McpTaskTools(
                 taskIdProp()
                 putJsonObject("text") { put("type", "string"); put("description", "The answer.") }
             }, readOnly = false),
+        Tool(STEER, "Add or correct instructions for a running or paused MCP task. Mika reads them before its next model step; " +
+            "the task_id stays the same. Use mika_answer for an open question. Cannot approve confirmations or steps handed to the user.",
+            schema(required = listOf("task_id", "text")) {
+                taskIdProp()
+                putJsonObject("text") { put("type", "string"); put("description", "The additional or corrected instructions.") }
+            }, readOnly = false),
         Tool(CANCEL, "Stop a task that was started over MCP.",
             schema(required = listOf("task_id")) { taskIdProp() }, readOnly = false),
         Tool(LIST, "Recent tasks started over MCP, newest first.",
@@ -180,7 +188,7 @@ class McpTaskTools(
                 putJsonObject("annotations") {
                     put("readOnlyHint", t.readOnly)
                     if (!t.readOnly) put("destructiveHint", t.name != ANSWER)
-                    put("openWorldHint", t.name == RUN)
+                    put("openWorldHint", t.name == RUN || t.name == STEER)
                 }
             })
         }
@@ -234,6 +242,20 @@ class McpTaskTools(
             if (!tasks.answer(t.id, text)) throw ToolError("The question is no longer open; check mika_task_status.")
             buildJsonObject { put("task_id", t.id); put("accepted", true) }
         }
+        STEER -> {
+            val t = task(args)
+            val text = string(args, "text")?.trim().orEmpty()
+            if (text.isEmpty()) throw ToolError("text is required and must be a non-empty string")
+            if (text.length > MAX_ANSWER) throw ToolError("text is too long (at most $MAX_ANSWER characters)")
+            when (val status = RemoteStatus.of(t.state)) {
+                RemoteStatus.RUNNING, RemoteStatus.PAUSED -> Unit
+                RemoteStatus.WAITING_FOR_ANSWER -> throw ToolError("Task ${t.id} is waiting for an answer; use mika_answer.")
+                RemoteStatus.WAITING_ON_PHONE -> throw ToolError(RemoteStatus.ON_PHONE_NOTE)
+                else -> throw ToolError("Task ${t.id} is not running (status $status).")
+            }
+            if (!tasks.steer(t.id, text)) throw ToolError("The task is no longer accepting instructions; check mika_task_status.")
+            buildJsonObject { put("task_id", t.id); put("accepted", true) }
+        }
         CANCEL -> {
             val t = task(args)
             val status = RemoteStatus.of(t.state)
@@ -285,6 +307,7 @@ class McpTaskTools(
         const val STATUS = "mika_task_status"
         const val WAIT = "mika_wait_task"
         const val ANSWER = "mika_answer"
+        const val STEER = "mika_steer"
         const val CANCEL = "mika_cancel_task"
         const val LIST = "mika_list_tasks"
         const val DEFAULT_WAIT_S = 30

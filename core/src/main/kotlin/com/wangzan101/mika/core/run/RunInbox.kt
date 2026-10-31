@@ -43,8 +43,8 @@ class RunInbox {
     }
 
     suspend fun send(input: RunInput): InputReceipt = when (input) {
-        is RunInput.Steer -> queue(input.messageId, input.text)
-        is RunInput.Redirect -> queue(input.messageId, input.text)
+        is RunInput.Steer -> steer(input.messageId, input.text)
+        is RunInput.Redirect -> steer(input.messageId, input.text)
         RunInput.Cancel -> cancel()
         is RunInput.Answer -> if (closed) InputReceipt.Closed else
             if (handler?.answer(input.text, input.askId) == true) InputReceipt.Accepted else InputReceipt.NoPendingInteraction
@@ -54,7 +54,7 @@ class RunInbox {
             if (handler?.handBack(input.result, input.askId) == true) InputReceipt.Accepted else InputReceipt.NoPendingInteraction
     }
 
-    private fun queue(id: String, text: String): InputReceipt = synchronized(lock) {
+    fun steer(id: String, text: String): InputReceipt = synchronized(lock) {
         if (closed) InputReceipt.NextTask else {
             steers += UserSteer(id, text)
             pending.value = true

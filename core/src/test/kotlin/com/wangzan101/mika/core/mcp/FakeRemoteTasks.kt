@@ -6,6 +6,8 @@ import com.wangzan101.mika.core.agent.TaskState
 class FakeRemoteTasks : RemoteTasks {
     val tasks = LinkedHashMap<String, RemoteTask>()
     val answers = mutableListOf<Pair<String, String>>()
+    val steers = mutableListOf<Pair<String, String>>()
+    var acceptSteer = true
     val cancelled = mutableListOf<String>()
     var refuse: String? = null
     private var next = 0
@@ -22,6 +24,12 @@ class FakeRemoteTasks : RemoteTasks {
 
     override fun answer(id: String, text: String): Boolean {
         answers += id to text
+        return true
+    }
+
+    override fun steer(id: String, text: String): Boolean {
+        if (!acceptSteer) return false
+        steers += id to text
         return true
     }
 

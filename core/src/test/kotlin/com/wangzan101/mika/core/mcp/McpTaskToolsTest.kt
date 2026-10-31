@@ -51,9 +51,9 @@ class McpTaskToolsTest {
 
     private fun JsonObject.str(k: String) = this[k]?.jsonPrimitive?.content
 
-    @Test fun toolListHasTheSixHighLevelTools() {
+    @Test fun toolListHasTheHighLevelTools() {
         val names = tools.definitions().map { it.jsonObject.str("name") }
-        assertEquals(listOf("mika_run_task", "mika_task_status", "mika_wait_task", "mika_answer", "mika_cancel_task", "mika_list_tasks"), names)
+        assertEquals(listOf("mika_run_task", "mika_task_status", "mika_wait_task", "mika_answer", "mika_steer", "mika_cancel_task", "mika_list_tasks"), names)
         tools.definitions().forEach { t ->
             val schema = t.jsonObject["inputSchema"]!!.jsonObject
             assertEquals("object", schema.str("type"))
@@ -142,6 +142,52 @@ class McpTaskToolsTest {
         val r = call(McpTaskTools.ANSWER, args("task_id" to "t1", "text" to " M "))
         assertEquals("true", r.str("accepted"))
         assertEquals(listOf("t1" to "M"), fake.answers)
+    }
+
+    @Test fun steerContinuesTheSameRunningOrPausedTask() = runTest {
+        call(McpTaskTools.RUN, args("goal" to "check the weather"))
+        fake.set("t1", TaskState.Running(1, "checking"))
+        val r = call(McpTaskTools.STEER, args("task_id" to "t1", "text" to "  only tomorrow  "))
+        assertEquals("t1", r.str("task_id"))
+        assertEquals("true", r.str("accepted"))
+        fake.set("t1", TaskState.Held(GateReason("waiting_unlock")))
+        call(McpTaskTools.STEER, args("task_id" to "t1", "text" to "and the wind"))
+        assertEquals(listOf("t1" to "only tomorrow", "t1" to "and the wind"), fake.steers)
+        assertEquals(1, fake.tasks.size)
+        assertTrue(fake.answers.isEmpty())
+    }
+
+    @Test fun steerCannotAnswerOrControlFinishedAndUnknownTasks() = runTest {
+        rejects(McpTaskTools.STEER, args("task_id" to "phone-task", "text" to "go"), "No MCP task")
+        call(McpTaskTools.RUN, args("goal" to "x"))
+        rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to "go"), "not running")
+        fake.set("t1", TaskState.WaitingInput("Which one?"))
+        rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to "yes"), "mika_answer")
+        listOf(
+            TaskState.WaitingTakeover("payment", "Please pay"),
+            TaskState.WaitingConfirmation(ConfirmationRequest(IrrevAction.order, "Shop", "1 item", "¥25", "com.example.shop")),
+            TaskState.Held(GateReason("waiting_user", needsYou = true)),
+        ).forEach {
+            fake.set("t1", it)
+            rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to "yes"), "on the phone")
+        }
+        listOf(TaskState.Succeeded("done"), TaskState.Failed("no network", FailKind.Environment), TaskState.Cancelled).forEach {
+            fake.set("t1", it)
+            rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to "go"), "not running")
+        }
+        assertTrue(fake.steers.isEmpty())
+    }
+
+    @Test fun steerValidatesTextAndReportsAClosingTask() = runTest {
+        call(McpTaskTools.RUN, args("goal" to "x"))
+        fake.set("t1", TaskState.Running(1, "checking"))
+        rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to " "), "text")
+        rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to 5), "text must be a string")
+        rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to "x".repeat(McpTaskTools.MAX_ANSWER + 1)), "too long")
+        fake.acceptSteer = false
+        rejects(McpTaskTools.STEER, args("task_id" to "t1", "text" to "go"), "no longer accepting")
+        assertTrue(fake.steers.isEmpty())
+        assertEquals(1, fake.tasks.size)
     }
 
     @Test fun cancelLeavesFinishedTasksAlone() = runTest {

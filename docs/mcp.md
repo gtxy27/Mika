@@ -124,6 +124,7 @@ curl -s http://192.168.1.23:8765/mcp \
 | `mika_task_status` | `task_id` | 任务此刻的状态、最近的进度、在等什么、做完时的回答。 |
 | `mika_wait_task` | `task_id`、`timeout_s`（可选，默认 30，最多 50） | 等到状态变了（比如开始等你回答、做完了）或者到时间，再返回状态。进度说明变了不算，不会一步一返回。 |
 | `mika_answer` | `task_id`、`text` | 回答 Mika 在这个任务里问的问题。 |
+| `mika_steer` | `task_id`、`text` | 给正在运行或暂停的任务补充、更正要求，下一次模型请求会带上，任务编号不变。追问仍用 `mika_answer`，手机上的确认和接管不能用它回答。 |
 | `mika_cancel_task` | `task_id` | 停下这个任务。 |
 | `mika_list_tasks` | `limit`（可选，默认 10） | 电脑交来的最近几个任务，新的在前。 |
 
